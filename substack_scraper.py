@@ -192,7 +192,7 @@ class BaseSubstackScraper(ABC):
         return markdown.markdown(md_content, extensions=['extra'])
 
 
-    def save_to_html_file(self, filepath: str, content: str) -> None:
+    def save_to_html_file(self, title: str, author: str, filepath: str, content: str) -> None:
         """
         This method saves HTML content to a file with a link to an external CSS file.
         """
@@ -213,8 +213,9 @@ class BaseSubstackScraper(ABC):
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Markdown Content</title>
+                <title>{title}</title>
                 <link rel="stylesheet" href="{css_path}">
+                <meta name="author" content="{author}">
             </head>
             <body>
                 <main class="markdown-content">
@@ -244,7 +245,7 @@ class BaseSubstackScraper(ABC):
         return url.split("/")[-1] + filetype
 
     @staticmethod
-    def combine_metadata_and_content(title: str, subtitle: str, date: str, like_count: str, content) -> str:
+    def combine_metadata_and_content(title: str, subtitle: str, date: str, like_count: str, author_element: str, content) -> str:
         """
         Combines the title, subtitle, and content into a single string with Markdown format
         """
@@ -257,6 +258,8 @@ class BaseSubstackScraper(ABC):
         metadata = f"# {title}\n\n"
         if subtitle:
             metadata += f"## {subtitle}\n\n"
+        if author_element:
+            metadata += f"**Author:** {author_element}\n\n"
         metadata += f"**{date}**\n\n"
         metadata += f"**Likes:** {like_count}\n\n"
 
@@ -299,12 +302,15 @@ class BaseSubstackScraper(ABC):
             else "0"
         )
 
+        # Extract author name
+        author_element = soup.select_one("a.pencraft.pc-reset.decoration-hover-underline-ClDVRM.reset-IxiVJZ").text
+
         # Extract and convert content
         content = str(soup.select_one("div.available-content"))
         md = self.html_to_md(content)
-        md_content = self.combine_metadata_and_content(title, subtitle, date, like_count, md)
+        md_content = self.combine_metadata_and_content(title, subtitle, date, like_count, author_element, md)
         
-        return title, subtitle, like_count, date, md_content
+        return title, subtitle, like_count, date, author_element, md_content
 
 
     @abstractmethod
@@ -336,22 +342,24 @@ class BaseSubstackScraper(ABC):
         total = num_posts_to_scrape if num_posts_to_scrape != 0 else len(self.post_urls)
         for url in tqdm(self.post_urls, total=total):
             try:
-                md_filename = self.get_filename_from_url(url, filetype=".md")
-                html_filename = self.get_filename_from_url(url, filetype=".html")
+                soup = self.get_url_soup(url)
+                if soup is None:
+                    total += 1
+                    continue
+
+                title, subtitle, like_count, date, author, md = self.extract_post_data(soup)
+                md_filename = f'{title}.md'
+                html_filename = f'{title}.html'
                 md_filepath = os.path.join(self.md_save_dir, md_filename)
                 html_filepath = os.path.join(self.html_save_dir, html_filename)
 
                 if not os.path.exists(md_filepath):
-                    soup = self.get_url_soup(url)
-                    if soup is None:
-                        total += 1
-                        continue
-                    title, subtitle, like_count, date, md = self.extract_post_data(soup)
+                    # Save markdown file
                     self.save_to_file(md_filepath, md)
 
                     # Convert markdown to HTML and save
                     html_content = self.md_to_html(md)
-                    self.save_to_html_file(html_filepath, html_content)
+                    self.save_to_html_file(title, author, html_filepath, html_content)
 
                     essays_data.append({
                         "title": title,
@@ -370,6 +378,7 @@ class BaseSubstackScraper(ABC):
                 break
         self.save_essays_data_to_json(essays_data=essays_data)
         generate_html_file(author_name=self.writer_name)
+
     def sanitize_url(self, url: str) -> str:
         """
         Sanitizes the URL by removing query parameters and trailing slashes.
