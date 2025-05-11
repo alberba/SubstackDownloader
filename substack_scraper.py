@@ -24,7 +24,7 @@ from urllib.parse import urlparse
 from config import EMAIL, PASSWORD
 
 USE_PREMIUM: bool = False  # Set to True if you want to login to Substack and convert paid for posts
-BASE_SUBSTACK_URL: str = "https://www.thefitzwilliam.com/"  # Substack you want to convert to markdown
+BASE_SUBSTACK_URL: str = "https://open.substack.com/pub/galicianinvestor/p/71-por-que-importa-el-analisis-sectorial?r=1nxdxj&utm_campaign=post&utm_medium=web"  # Substack you want to convert to markdown
 BASE_MD_DIR: str = "substack_md_files"  # Name of the directory we'll save the .md essay files
 BASE_HTML_DIR: str = "substack_html_pages"  # Name of the directory we'll save the .html essay files
 HTML_TEMPLATE: str = "author_template.html"  # HTML template to use for the author page
@@ -34,8 +34,15 @@ ONE_PAGE: bool = False  # Set to True if you want to scrape only one page
 
 
 def extract_main_part(url: str) -> str:
-    parts = urlparse(url).netloc.split('.')  # Parse the URL to get the netloc, and split on '.'
-    return parts[1] if parts[0] == 'www' else parts[0]  # Return the main part of the domain, while ignoring 'www' if
+    url_parsed = urlparse(url)
+    url_netloc = url_parsed.netloc.split('.')  # Parse the URL to get the netloc, and split on '.'
+    if url_netloc[0] == 'www':
+        return url_netloc[1]  # If 'www' is present, return the next part
+    elif url_netloc[0] == 'open':
+        return url_parsed.path.split('/')[2] # If 'open' is present, author name is in the path (open.substack.com/pub/author_name)
+        
+    else:
+        return url_netloc[0]
     # present
 
 
