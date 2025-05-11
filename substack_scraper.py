@@ -30,6 +30,7 @@ BASE_HTML_DIR: str = "substack_html_pages"  # Name of the directory we'll save t
 HTML_TEMPLATE: str = "author_template.html"  # HTML template to use for the author page
 JSON_DATA_DIR: str = "data"
 NUM_POSTS_TO_SCRAPE: int = 3  # Set to 0 if you want all posts
+ONE_PAGE: bool = False  # Set to True if you want to scrape only one page
 
 
 def extract_main_part(url: str) -> str:
@@ -70,10 +71,13 @@ def generate_html_file(author_name: str) -> None:
 
 
 class BaseSubstackScraper(ABC):
-    def __init__(self, base_substack_url: str, md_save_dir: str, html_save_dir: str):
-        if not base_substack_url.endswith("/"):
+    def __init__(self, base_substack_url: str, md_save_dir: str, html_save_dir: str, is_one_page: bool = False):
+        if not is_one_page and not base_substack_url.endswith("/"):
             base_substack_url += "/"
-        self.base_substack_url: str = base_substack_url
+            self.base_substack_url: str = base_substack_url
+        if is_one_page:
+            self.base_substack_url: str = self.sanitize_url(base_substack_url)
+        
 
         self.writer_name: str = extract_main_part(base_substack_url)
         md_save_dir: str = f"{md_save_dir}/{self.writer_name}"
@@ -89,7 +93,7 @@ class BaseSubstackScraper(ABC):
             print(f"Created html directory {self.html_save_dir}")
 
         self.keywords: List[str] = ["about", "archive", "podcast"]
-        self.post_urls: List[str] = self.get_all_post_urls()
+        self.post_urls: List[str] = [self.base_substack_url] if is_one_page else self.get_all_post_urls()
 
     def get_all_post_urls(self) -> List[str]:
         """
@@ -359,11 +363,19 @@ class BaseSubstackScraper(ABC):
                 break
         self.save_essays_data_to_json(essays_data=essays_data)
         generate_html_file(author_name=self.writer_name)
+    def sanitize_url(self, url: str) -> str:
+        """
+        Sanitizes the URL by removing query parameters and trailing slashes.
+        """
+        if "?" in url:
+            url = url.split("?")[0]
+        
+        return url
 
 
 class SubstackScraper(BaseSubstackScraper):
-    def __init__(self, base_substack_url: str, md_save_dir: str, html_save_dir: str):
-        super().__init__(base_substack_url, md_save_dir, html_save_dir)
+    def __init__(self, base_substack_url: str, md_save_dir: str, html_save_dir: str, is_one_page: bool = False):
+        super().__init__(base_substack_url, md_save_dir, html_save_dir, is_one_page)
 
     def get_url_soup(self, url: str) -> Optional[BeautifulSoup]:
         """
@@ -389,9 +401,10 @@ class PremiumSubstackScraper(BaseSubstackScraper):
             headless: bool = False,
             edge_path: str = '',
             edge_driver_path: str = '',
-            user_agent: str = ''
+            user_agent: str = '',
+            is_one_page: bool = False,
     ) -> None:
-        super().__init__(base_substack_url, md_save_dir, html_save_dir)
+        super().__init__(base_substack_url, md_save_dir, html_save_dir, is_one_page)
 
         options = EdgeOptions()
         if headless:
@@ -550,13 +563,15 @@ def main():
                 args.url,
                 headless=args.headless,
                 md_save_dir=args.directory,
-                html_save_dir=args.html_directory
+                html_save_dir=args.html_directory,
+                is_one_page=args.one_page,
             )
         else:
             scraper = SubstackScraper(
                 args.url,
                 md_save_dir=args.directory,
-                html_save_dir=args.html_directory
+                html_save_dir=args.html_directory,
+                is_one_page=args.one_page,
             )
         scraper.scrape_posts(args.number)
 
@@ -567,13 +582,15 @@ def main():
                 md_save_dir=args.directory,
                 html_save_dir=args.html_directory,
                 edge_path=args.edge_path,
-                edge_driver_path=args.edge_driver_path
+                edge_driver_path=args.edge_driver_path,
+                is_one_page=ONE_PAGE,
             )
         else:
             scraper = SubstackScraper(
                 base_substack_url=BASE_SUBSTACK_URL,
                 md_save_dir=args.directory,
-                html_save_dir=args.html_directory
+                html_save_dir=args.html_directory,
+                is_one_page=ONE_PAGE,
             )
         scraper.scrape_posts(num_posts_to_scrape=NUM_POSTS_TO_SCRAPE)
 
