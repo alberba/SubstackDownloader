@@ -461,13 +461,17 @@ class PremiumSubstackScraper(BaseSubstackScraper):
         submit = self.driver.find_element(By.XPATH, "//*[@id=\"substack-login\"]/div[2]/div[2]/form/button")
         submit.click()
         sleep(30)  # Wait for the page to load
+        attemps = 0
 
-        if self.is_login_failed():
-            raise Exception(
-                "Warning: Login unsuccessful. Please check your email and password, or your account status.\n"
-                "Use the non-premium scraper for the non-paid posts. \n"
-                "If running headless, run non-headlessly to see if blocked by Captcha."
-            )
+        while self.is_login_failed():
+            sleep(20)
+            attemps += 1
+            if attemps > 5:
+                raise Exception(
+                    "Warning: Login unsuccessful. Please check your email and password, or your account status.\n"
+                    "Use the non-premium scraper for the non-paid posts. \n"
+                    "If running headless, run non-headlessly to see if blocked by Captcha."
+                )
 
     def is_login_failed(self) -> bool:
         """
