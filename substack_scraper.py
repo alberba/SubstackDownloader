@@ -79,10 +79,11 @@ def generate_html_file(author_name: str) -> None:
 
 class BaseSubstackScraper(ABC):
     def __init__(self, base_substack_url: str, md_save_dir: str, html_save_dir: str, is_one_page: bool = False):
-        if not is_one_page and not base_substack_url.endswith("/"):
-            base_substack_url += "/"
+        if not is_one_page:
+            if not base_substack_url.endswith("/"):
+                base_substack_url += "/"
             self.base_substack_url: str = base_substack_url
-        if is_one_page:
+        else:
             self.base_substack_url: str = self.sanitize_url(base_substack_url)
         
 
@@ -348,6 +349,7 @@ class BaseSubstackScraper(ABC):
                     continue
 
                 title, subtitle, like_count, date, author, md = self.extract_post_data(soup)
+                title = sanitize_title(title)
                 md_filename = f'{title}.md'
                 html_filename = f'{title}.html'
                 md_filepath = os.path.join(self.md_save_dir, md_filename)
@@ -387,6 +389,18 @@ class BaseSubstackScraper(ABC):
             url = url.split("?")[0]
         
         return url
+    
+def sanitize_title(title: str) -> str:
+    """
+    Sanitizes the title by replacing spaces with underscores and removing special characters.
+    """
+    if not isinstance(title, str):
+        raise ValueError("title must be a string")
+
+    # Remove special characters
+    title = "".join(c for c in title if c.isalnum() or c in [" ", "_", "-", "(", ")", "."])
+
+    return title
 
 
 class SubstackScraper(BaseSubstackScraper):
